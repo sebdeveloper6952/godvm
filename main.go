@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/joho/godotenv"
 	"github.com/lightninglabs/lndclient"
 	"github.com/sebdeveloper6952/go-dvm/dvm"
 	"github.com/sebdeveloper6952/go-dvm/engine"
@@ -14,6 +15,11 @@ import (
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	ctx, cancelCtx := context.WithCancel(context.Background())
 
 	logger := logrus.New()
@@ -50,7 +56,14 @@ func main() {
 
 	e.RegisterDVM(imageGenDvm)
 
-	e.Run(ctx)
+	if err := e.Run(
+		ctx,
+		[]string{
+			"wss://nostr-pub.wellorder.net",
+		},
+	); err != nil {
+		log.Fatal(err)
+	}
 
 	log.Println("running...")
 

@@ -6,6 +6,38 @@ import (
 	"strconv"
 )
 
+const (
+	KindReqTextExtraction    = 5000
+	KindReqTextSummarization = 5001
+	KindReqTextTranslation   = 5002
+	KindReqTextGeneration    = 5050
+	KindReqImageGeneration   = 5100
+	KindReqVideoConversion   = 5200
+	KindReqVideoTranslation  = 5201
+	KindReqTextToSpeech      = 5250
+	KindReqContentDiscovery  = 5300
+	KindReqNpubDiscovery     = 5301
+	KindReqNostrEventCount   = 5400
+	KindReqEventTimestamping = 5900
+	KindReqBitcoinOpReturn   = 5901
+
+	KindResTextExtraction    = 6000
+	KindResTextSummarization = 6001
+	KindResTextTranslation   = 6002
+	KindResTextGeneration    = 6050
+	KindResImageGeneration   = 6100
+	KindResVideoConversion   = 6200
+	KindResVideoTranslation  = 6201
+	KindResTextToSpeech      = 6250
+	KindResContentDiscovery  = 6300
+	KindResNpubDiscovery     = 6301
+	KindResNostrEventCount   = 6400
+	KindResEventTimestamping = 6900
+	KindResBitcoinOpReturn   = 6901
+
+	KindJobFeedback = 7000
+)
+
 type Nip90Input struct {
 	JobRequestId        string
 	CustomerPubkey      string
