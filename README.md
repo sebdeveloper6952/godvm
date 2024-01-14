@@ -5,7 +5,7 @@ DVM engine to write DVMs on top.
 TODO List
 - [] fully implement nip-90
   - [x] add job kinds 
-  - [] advertise DVMs nip-89
+  - [x] advertise DVMs nip-89
   - [x] job request input as text
   - [] job request input as event
   - [] job request input output of another job
