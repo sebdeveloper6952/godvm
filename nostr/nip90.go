@@ -36,6 +36,11 @@ const (
 	KindResBitcoinOpReturn   = 6901
 
 	KindJobFeedback = 7000
+
+	InputTypeText  = "text"
+	InputTypeURL   = "url"
+	InputTypeEvent = "event"
+	InputTypeJob   = "job"
 )
 
 type Nip90Input struct {

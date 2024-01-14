@@ -7,7 +7,7 @@ import (
 	"github.com/sebdeveloper6952/go-dvm/nostr"
 )
 
-type DvmImageGen struct {
+type ImageGen struct {
 	sk string
 	pk string
 }
@@ -16,7 +16,7 @@ type res struct {
 	Result string
 }
 
-func (i *DvmImageGen) SetSk(sk string) error {
+func (i *ImageGen) SetSk(sk string) error {
 	i.sk = sk
 	pk, err := goNostr.GetPublicKey(i.sk)
 	if err != nil {
@@ -27,15 +27,15 @@ func (i *DvmImageGen) SetSk(sk string) error {
 	return nil
 }
 
-func (i *DvmImageGen) Pk() string {
+func (i *ImageGen) Pk() string {
 	return i.pk
 }
 
-func (i *DvmImageGen) Sign(e *goNostr.Event) error {
+func (i *ImageGen) Sign(e *goNostr.Event) error {
 	return e.Sign(i.sk)
 }
 
-func (i *DvmImageGen) Profile() *nostr.ProfileMetadata {
+func (i *ImageGen) Profile() *nostr.ProfileMetadata {
 	return &nostr.ProfileMetadata{
 		Name:    "Test Image Gen",
 		About:   "Just testing out some stuff, dont' use me yet.",
@@ -43,20 +43,24 @@ func (i *DvmImageGen) Profile() *nostr.ProfileMetadata {
 	}
 }
 
-func (i *DvmImageGen) KindSupported() int {
+func (i *ImageGen) KindSupported() int {
 	return 5100
 }
 
-func (i *DvmImageGen) AcceptJob(input *nostr.Nip90Input) bool {
+func (i *ImageGen) AcceptJob(input *nostr.Nip90Input) bool {
 	_, err := nostr.ImageGenerationInputFromNip90Input(input)
 	if err != nil {
+		return false
+	}
+
+	if input.InputType != nostr.InputTypeText {
 		return false
 	}
 
 	return true
 }
 
-func (i *DvmImageGen) Run(ctx context.Context, input *nostr.Nip90Input) (chan *domain.JobUpdate, chan *domain.JobUpdate, chan error) {
+func (i *ImageGen) Run(ctx context.Context, input *nostr.Nip90Input) (chan *domain.JobUpdate, chan *domain.JobUpdate, chan error) {
 	chanToDvm := make(chan *domain.JobUpdate)
 	chanToEngine := make(chan *domain.JobUpdate)
 	chanErr := make(chan error)

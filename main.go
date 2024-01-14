@@ -45,7 +45,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	imageGenDvm := &dvm.DvmImageGen{}
+	imageGenDvm := &dvm.ImageGen{}
 	imageGenDvm.SetSk(os.Getenv("DVM_SK"))
 
 	e, err := engine.NewEngine()
