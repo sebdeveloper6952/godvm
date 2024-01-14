@@ -50,13 +50,15 @@ type Nip90Input struct {
 	BidMillisats        int
 	Relays              []string
 	JobRequestEventJSON string
+	Event               *goNostr.Event
 }
 
-func Nip90InputFromEvent(e *goNostr.Event) (*Nip90Input, error) {
+func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 	input := &Nip90Input{
 		JobRequestId:   e.ID,
 		CustomerPubkey: e.PubKey,
 		Params:         make([][2]string, 0),
+		Event:          e,
 	}
 
 	eventJson, err := json.Marshal(e)

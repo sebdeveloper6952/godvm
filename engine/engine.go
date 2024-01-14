@@ -12,10 +12,11 @@ import (
 )
 
 type Engine struct {
-	dvmsByKind map[int][]domain.Dvmer
-	nostrSvc   nostr.Service
-	lnSvc      lightning.Service
-	log        *logrus.Logger
+	dvmsByKind      map[int][]domain.Dvmer
+	nostrSvc        nostr.Service
+	lnSvc           lightning.Service
+	log             *logrus.Logger
+	waitingForEvent map[string][]chan *goNostr.Event
 }
 
 func NewEngine() (*Engine, error) {
@@ -34,9 +35,10 @@ func NewEngine() (*Engine, error) {
 	}
 
 	e := &Engine{
-		dvmsByKind: make(map[int][]domain.Dvmer),
-		nostrSvc:   nostrSvc,
-		log:        logger,
+		dvmsByKind:      make(map[int][]domain.Dvmer),
+		waitingForEvent: make(map[string][]chan *goNostr.Event),
+		nostrSvc:        nostrSvc,
+		log:             logger,
 	}
 
 	return e, nil
@@ -75,97 +77,59 @@ func (e *Engine) Run(
 	go func() {
 		for {
 			select {
-			case event := <-e.nostrSvc.Events():
+			case event := <-e.nostrSvc.JobRequestEvents():
 				dvmsForKind, ok := e.dvmsByKind[event.Kind]
 				if !ok {
 					e.log.Debugf("[engine] no dvms for kind %d\n", event.Kind)
 					continue
 				}
 
-				nip90Input, err := nostr.Nip90InputFromEvent(event)
+				nip90Input, err := nostr.Nip90InputFromJobRequestEvent(event)
 				if err != nil {
 					e.log.Errorf("[engine] nip90Input from event  %+v\n", err)
 					continue
 				}
 
+				if nip90Input.InputType == "event" || nip90Input.InputType == "job" {
+					go func() {
+						if err := e.nostrSvc.FetchEvent(ctx, nip90Input.Input); err != nil {
+							e.log.Errorf("[engine] fetch event for job input %+v", err)
+							return
+						}
+						e.log.Tracef("[engine] fetched event for job input")
+					}()
+				}
+
 				for i := range dvmsForKind {
-					if dvmsForKind[i].AcceptJob(nip90Input) {
-						go func(dvm domain.Dvmer, input *nostr.Nip90Input) {
-							chanToDvm, chanToEngine, chanErr := dvmsForKind[i].Run(ctx, input)
-
-							for {
-								select {
-								case update := <-chanToEngine:
-									if update.Status == domain.StatusPaymentRequired {
-										i, err := e.lnSvc.AddInvoice(ctx, int64(update.AmountSats))
-										if err != nil {
-											chanToDvm <- &domain.JobUpdate{
-												Status: domain.StatusError,
-											}
-											return
-										}
-										e.log.Trace(i.PayReq)
-
-										update.PaymentRequest = i.PayReq
-										if err := e.sendFeedbackEvent(
-											ctx,
-											dvm,
-											input,
-											update,
-										); err != nil {
-											e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
-										}
-
-										u, e := e.lnSvc.TrackInvoice(ctx, i)
-									trackInvoiceLoop:
-										for {
-											select {
-											case invoiceUpdate := <-u:
-												if invoiceUpdate.Settled {
-													chanToDvm <- &domain.JobUpdate{
-														Status: domain.StatusPaymentCompleted,
-													}
-													break trackInvoiceLoop
-												}
-											case <-e:
-												chanToDvm <- &domain.JobUpdate{
-													Status: domain.StatusError,
-												}
-												return
-											}
-										}
-
-									} else if update.Status == domain.StatusSuccess {
-										if err := e.sendFeedbackEvent(
-											ctx,
-											dvm,
-											input,
-											update,
-										); err != nil {
-											e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
-										}
-										if err := e.sendJobResultEvent(
-											ctx,
-											dvm,
-											input,
-											update,
-										); err != nil {
-											e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
-										}
-
-										e.log.Tracef("[engine] job completed %+v", update)
-									}
-
-								case err := <-chanErr:
-									e.log.Tracef("[engine] job failed %+v", err)
-									return
-								case <-ctx.Done():
-									e.log.Tracef("[engine] job context canceled")
+					go func(dvm domain.Dvmer, input *nostr.Nip90Input) {
+						if dvm.AcceptJob(input) {
+							// if input type is event or job, wait for event, then run DVM
+							// else run DVM
+							if nip90Input.InputType == "event" || nip90Input.InputType == "job" {
+								waitForEventCh := make(chan *goNostr.Event)
+								e.saveDvmWaitingForEvent(nip90Input.Input, waitForEventCh)
+								e.log.Tracef("[engine] dvm %s waiting for event/job %s", dvm.Pk(), input.Input)
+								inputEvent := <-waitForEventCh
+								input.Input = inputEvent.Content
+								input.InputType = "text"
+								if err != nil {
+									e.log.Errorf("[engine] nip90Input from event  %+v\n", err)
 									return
 								}
 							}
-						}(dvmsForKind[i], nip90Input)
+
+							e.runDvm(ctx, dvm, input)
+						}
+					}(dvmsForKind[i], nip90Input)
+				}
+			case event := <-e.nostrSvc.InputEvents():
+				dvmsWaiting, exist := e.waitingForEvent[event.ID]
+				if exist {
+					for i := range dvmsWaiting {
+						dvmsWaiting[i] <- event
+						close(dvmsWaiting[i])
 					}
+					delete(e.waitingForEvent, event.ID)
 				}
 			case <-ctx.Done():
 				return
@@ -174,6 +138,81 @@ func (e *Engine) Run(
 	}()
 
 	return nil
+}
+
+func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip90Input) {
+	chanToDvm, chanToEngine, chanErr := dvm.Run(ctx, input)
+
+	for {
+		select {
+		case update := <-chanToEngine:
+			if update.Status == domain.StatusPaymentRequired {
+				i, err := e.lnSvc.AddInvoice(ctx, int64(update.AmountSats))
+				if err != nil {
+					chanToDvm <- &domain.JobUpdate{
+						Status: domain.StatusError,
+					}
+					return
+				}
+
+				update.PaymentRequest = i.PayReq
+				if err := e.sendFeedbackEvent(
+					ctx,
+					dvm,
+					input,
+					update,
+				); err != nil {
+					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+				}
+
+				u, e := e.lnSvc.TrackInvoice(ctx, i)
+			trackInvoiceLoop:
+				for {
+					select {
+					case invoiceUpdate := <-u:
+						if invoiceUpdate.Settled {
+							chanToDvm <- &domain.JobUpdate{
+								Status: domain.StatusPaymentCompleted,
+							}
+							break trackInvoiceLoop
+						}
+					case <-e:
+						chanToDvm <- &domain.JobUpdate{
+							Status: domain.StatusError,
+						}
+						return
+					}
+				}
+
+			} else if update.Status == domain.StatusSuccess {
+				if err := e.sendFeedbackEvent(
+					ctx,
+					dvm,
+					input,
+					update,
+				); err != nil {
+					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+				}
+				if err := e.sendJobResultEvent(
+					ctx,
+					dvm,
+					input,
+					update,
+				); err != nil {
+					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+				}
+
+				e.log.Tracef("[engine] job completed %+v", update)
+			}
+
+		case err := <-chanErr:
+			e.log.Tracef("[engine] job failed %+v", err)
+			return
+		case <-ctx.Done():
+			e.log.Tracef("[engine] job context canceled")
+			return
+		}
+	}
 }
 
 // advertiseDvms publishes two events:
@@ -270,6 +309,14 @@ func (e *Engine) sendJobResultEvent(
 		ctx,
 		*jobResultEvent,
 	)
+}
+
+func (e *Engine) saveDvmWaitingForEvent(id string, waitCh chan *goNostr.Event) {
+	if _, exist := e.waitingForEvent[id]; !exist {
+		e.waitingForEvent[id] = make([]chan *goNostr.Event, 0, 1)
+	}
+
+	e.waitingForEvent[id] = append(e.waitingForEvent[id], waitCh)
 }
 
 func (e *Engine) getKindsSupported() []int {
