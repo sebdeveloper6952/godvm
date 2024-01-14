@@ -1,14 +1,13 @@
-- nostr service
-  - relays, sub, pub events
+Go-DVM
 
-- engine
-  - runs loop that
-    - receives events from nostr service and dispatches to DVMs
-    - receives updates from DVMs and dispatches to nostr
-    - talks to lightning service to get invoices
-    - receives invoice state updates to inform DVMs
-    - listens to zap events to inform DVMs
+DVM engine to write DVMs on top.
 
-- dvm
-  - each dvm has its own sk
-  - interface that if implemented, creates a DVM
+TODO List
+- [] fully implement nip-90
+  - [x] job request input as text
+  - [] job request input as event
+  - [] job request input output of another job
+  - [] job request input as url
+  - [] encrypted job params
+  - [] job request relay list: publish job feedback, result, to list of relays
+  - [] parse job input marker to be forwarded to DVMs
