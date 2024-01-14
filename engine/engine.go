@@ -69,28 +69,7 @@ func (e *Engine) Run(
 			e.log.Errorf("[engine] run nostr service %+v", err)
 		}
 
-		for kind, dvms := range e.dvmsByKind {
-			for i := range dvms {
-				ev := nostr.NewHandlerInformationEvent(
-					dvms[i].Pk(),
-					dvms[i].Profile(),
-					[]int{kind},
-				)
-				dvms[i].Sign(ev)
-				if err := e.nostrSvc.PublishEvent(ctx, *ev); err != nil {
-					e.log.Errorf("[engine] publish nip-89 %s %+v", dvms[i].Pk(), err)
-				}
-
-				profileEv := nostr.NewProfileMetadataEvent(
-					dvms[i].Pk(),
-					dvms[i].Profile(),
-				)
-				dvms[i].Sign(profileEv)
-				if err := e.nostrSvc.PublishEvent(ctx, *profileEv); err != nil {
-					e.log.Errorf("[engine] publish profile %s %+v", dvms[i].Pk(), err)
-				}
-			}
-		}
+		e.advertiseDvms(ctx)
 	}()
 
 	go func() {
@@ -195,6 +174,32 @@ func (e *Engine) Run(
 	}()
 
 	return nil
+}
+
+// advertiseDvms publishes one
+func (e *Engine) advertiseDvms(ctx context.Context) {
+	for kind, dvms := range e.dvmsByKind {
+		for i := range dvms {
+			ev := nostr.NewHandlerInformationEvent(
+				dvms[i].Pk(),
+				dvms[i].Profile(),
+				[]int{kind},
+			)
+			dvms[i].Sign(ev)
+			if err := e.nostrSvc.PublishEvent(ctx, *ev); err != nil {
+				e.log.Errorf("[engine] publish nip-89 %s %+v", dvms[i].Pk(), err)
+			}
+
+			profileEv := nostr.NewProfileMetadataEvent(
+				dvms[i].Pk(),
+				dvms[i].Profile(),
+			)
+			dvms[i].Sign(profileEv)
+			if err := e.nostrSvc.PublishEvent(ctx, *profileEv); err != nil {
+				e.log.Errorf("[engine] publish profile %s %+v", dvms[i].Pk(), err)
+			}
+		}
+	}
 }
 
 func (e *Engine) sendFeedbackEvent(
