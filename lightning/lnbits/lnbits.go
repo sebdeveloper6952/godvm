@@ -69,8 +69,13 @@ func (l lnbits) AddInvoice(ctx context.Context, amountSats int64) (*lightning.In
 		return nil, err
 	}
 
+	hash, err := lntypes.MakeHashFromStr(target.PaymentHash)
+	if err != nil {
+		return nil, err
+	}
+
 	return &lightning.Invoice{
-		Hash:   target.PaymentHash,
+		Hash:   hash,
 		PayReq: target.PaymentRequest,
 	}, nil
 }
@@ -83,15 +88,9 @@ func (l lnbits) TrackInvoice(ctx context.Context, invoice *lightning.Invoice) (c
 		defer close(updates)
 		defer close(errors)
 
-		hash, err := lntypes.MakeHashFromStr(invoice.Hash)
-		if err != nil {
-			errors <- err
-			return
-		}
-
 		req, err := http.NewRequest(
 			http.MethodGet,
-			l.url+"/api/v1/payments/"+hash.String(),
+			l.url+"/api/v1/payments/"+invoice.Hash.String(),
 			http.NoBody,
 		)
 		if err != nil {
@@ -119,7 +118,7 @@ func (l lnbits) TrackInvoice(ctx context.Context, invoice *lightning.Invoice) (c
 
 				if target.Paid {
 					updates <- &lightning.InvoiceUpdate{
-						Status: "SETTLED",
+						Settled: true,
 					}
 					res.Body.Close()
 					return
