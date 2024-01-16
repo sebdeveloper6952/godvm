@@ -60,6 +60,7 @@ func main() {
 		ctx,
 		[]string{
 			"wss://nostr-pub.wellorder.net",
+			"wss://nos.lol",
 		},
 	); err != nil {
 		log.Fatal(err)
