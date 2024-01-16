@@ -35,6 +35,14 @@ func (i *DvmImageGen) Sign(e *goNostr.Event) error {
 	return e.Sign(i.sk)
 }
 
+func (i *DvmImageGen) Profile() *nostr.ProfileMetadata {
+	return &nostr.ProfileMetadata{
+		Name:    "Test Image Gen",
+		About:   "Just testing out some stuff, dont' use me yet.",
+		Picture: "https://t3.ftcdn.net/jpg/01/63/58/38/360_F_163583838_5OjOIdaCH47G3hthwBzuTfdwq12hL0IG.jpg",
+	}
+}
+
 func (i *DvmImageGen) KindSupported() int {
 	return 5100
 }

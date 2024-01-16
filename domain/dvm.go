@@ -12,6 +12,7 @@ type Dvmer interface {
 	KindSupported() int
 	AcceptJob(input *nostr.Nip90Input) bool
 	Run(ctx context.Context, input *nostr.Nip90Input) (chan *JobUpdate, chan *JobUpdate, chan error)
+	Profile() *nostr.ProfileMetadata
 }
 
 type Dvm struct {

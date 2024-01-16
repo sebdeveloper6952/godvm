@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	goNostr "github.com/nbd-wtf/go-nostr"
 	"github.com/sebdeveloper6952/go-dvm/domain"
@@ -11,7 +12,6 @@ import (
 )
 
 type Engine struct {
-	dvmsByPk   map[string]*domain.Dvm
 	dvmsByKind map[int][]domain.Dvmer
 	nostrSvc   nostr.Service
 	lnSvc      lightning.Service
@@ -54,12 +54,42 @@ func (e *Engine) SetLnService(ln lightning.Service) {
 	e.lnSvc = ln
 }
 
-func (e *Engine) Run(ctx context.Context) {
+func (e *Engine) Run(
+	ctx context.Context,
+	initialRelays []string,
+) error {
+	if initialRelays == nil || len(initialRelays) == 0 {
+		return errors.New("must provide at least one relay")
+	}
+
 	kindsSupported := e.getKindsSupported()
 
 	go func() {
-		if err := e.nostrSvc.Run(ctx, kindsSupported); err != nil {
+		if err := e.nostrSvc.Run(ctx, kindsSupported, initialRelays); err != nil {
 			e.log.Errorf("[engine] run nostr service %+v", err)
+		}
+
+		for kind, dvms := range e.dvmsByKind {
+			for i := range dvms {
+				ev := nostr.NewHandlerInformationEvent(
+					dvms[i].Pk(),
+					dvms[i].Profile(),
+					[]int{kind},
+				)
+				dvms[i].Sign(ev)
+				if err := e.nostrSvc.PublishEvent(ctx, *ev); err != nil {
+					e.log.Errorf("[engine] publish nip-89 %s %+v", dvms[i].Pk(), err)
+				}
+
+				profileEv := nostr.NewProfileMetadataEvent(
+					dvms[i].Pk(),
+					dvms[i].Profile(),
+				)
+				dvms[i].Sign(profileEv)
+				if err := e.nostrSvc.PublishEvent(ctx, *profileEv); err != nil {
+					e.log.Errorf("[engine] publish profile %s %+v", dvms[i].Pk(), err)
+				}
+			}
 		}
 	}()
 
@@ -163,6 +193,8 @@ func (e *Engine) Run(ctx context.Context) {
 			}
 		}
 	}()
+
+	return nil
 }
 
 func (e *Engine) sendFeedbackEvent(
@@ -192,7 +224,7 @@ func (e *Engine) sendFeedbackEvent(
 	}
 
 	dvm.Sign(feedbackEvent)
-	return e.nostrSvc.SendEvent(
+	return e.nostrSvc.PublishEvent(
 		ctx,
 		*feedbackEvent,
 	)
@@ -227,7 +259,7 @@ func (e *Engine) sendJobResultEvent(
 	}
 
 	dvm.Sign(jobResultEvent)
-	return e.nostrSvc.SendEvent(
+	return e.nostrSvc.PublishEvent(
 		ctx,
 		*jobResultEvent,
 	)
