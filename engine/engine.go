@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	goNostr "github.com/nbd-wtf/go-nostr"
 	"github.com/sebdeveloper6952/go-dvm/domain"
 	"github.com/sebdeveloper6952/go-dvm/lightning"
@@ -180,6 +181,15 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 					}
 				}
 
+			} else if update.Status == domain.StatusProcessing {
+				if err := e.sendFeedbackEvent(
+					ctx,
+					dvm,
+					input,
+					update,
+				); err != nil {
+					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+				}
 			} else if update.Status == domain.StatusSuccess {
 				if err := e.sendFeedbackEvent(
 					ctx,
@@ -282,7 +292,7 @@ func (e *Engine) sendJobResultEvent(
 	jobResultEvent := &goNostr.Event{
 		PubKey:    dvm.Pk(),
 		CreatedAt: goNostr.Now(),
-		Kind:      nostr.KindJobFeedback,
+		Kind:      input.ResultKind,
 		Content:   update.Result,
 		Tags: goNostr.Tags{
 			{"request", input.JobRequestEventJSON},

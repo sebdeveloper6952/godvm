@@ -115,7 +115,6 @@ func (l *lnd) trackInvoiceGrpc(
 			select {
 			case update := <-u:
 				if update.State == invoices.ContractSettled {
-					log.Print("lnd settled")
 					updates <- &lightning.InvoiceUpdate{
 						Settled: true,
 					}

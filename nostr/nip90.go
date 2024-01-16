@@ -18,6 +18,7 @@ const (
 	KindReqContentDiscovery  = 5300
 	KindReqNpubDiscovery     = 5301
 	KindReqNostrEventCount   = 5400
+	KindReqMalwareScan       = 5500
 	KindReqEventTimestamping = 5900
 	KindReqBitcoinOpReturn   = 5901
 
@@ -32,6 +33,7 @@ const (
 	KindResContentDiscovery  = 6300
 	KindResNpubDiscovery     = 6301
 	KindResNostrEventCount   = 6400
+	KindResMalwareScan       = 6500
 	KindResEventTimestamping = 6900
 	KindResBitcoinOpReturn   = 6901
 
@@ -41,6 +43,13 @@ const (
 	InputTypeURL   = "url"
 	InputTypeEvent = "event"
 	InputTypeJob   = "job"
+)
+
+var (
+	reqToRes = map[int]int{
+		KindReqImageGeneration: KindResImageGeneration,
+		KindReqMalwareScan:     KindResMalwareScan,
+	}
 )
 
 type Nip90Input struct {
@@ -56,6 +65,7 @@ type Nip90Input struct {
 	Relays              []string
 	JobRequestEventJSON string
 	Event               *goNostr.Event
+	ResultKind          int
 }
 
 func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
@@ -64,6 +74,7 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 		CustomerPubkey: e.PubKey,
 		Params:         make([][2]string, 0),
 		Event:          e,
+		ResultKind:     responseKind(e.Kind),
 	}
 
 	eventJson, err := json.Marshal(e)
@@ -100,4 +111,12 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 	}
 
 	return input, nil
+}
+
+func responseKind(requestKind int) int {
+	if res, ok := reqToRes[requestKind]; ok {
+		return res
+	}
+
+	return 0
 }
