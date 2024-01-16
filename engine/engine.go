@@ -176,7 +176,9 @@ func (e *Engine) Run(
 	return nil
 }
 
-// advertiseDvms publishes one
+// advertiseDvms publishes two events:
+// - kind 31990 for nip-89 handler information
+// - kind 0 for nip-01 profile metadata
 func (e *Engine) advertiseDvms(ctx context.Context) {
 	for kind, dvms := range e.dvmsByKind {
 		for i := range dvms {
