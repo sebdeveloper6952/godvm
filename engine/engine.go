@@ -90,7 +90,7 @@ func (e *Engine) Run(
 					continue
 				}
 
-				if nip90Input.InputType == "event" || nip90Input.InputType == "job" {
+				if nip90Input.InputType == nostr.InputTypeEvent || nip90Input.InputType == nostr.InputTypeJob {
 					go func() {
 						if err := e.nostrSvc.FetchEvent(ctx, nip90Input.Input); err != nil {
 							e.log.Errorf("[engine] fetch event for job input %+v", err)
@@ -104,18 +104,14 @@ func (e *Engine) Run(
 					go func(dvm domain.Dvmer, input *nostr.Nip90Input) {
 						if dvm.AcceptJob(input) {
 							// if input type is event or job, wait for event, then run DVM
-							// else run DVM
-							if nip90Input.InputType == "event" || nip90Input.InputType == "job" {
+							if nip90Input.InputType == nostr.InputTypeEvent ||
+								nip90Input.InputType == nostr.InputTypeJob {
 								waitForEventCh := make(chan *goNostr.Event)
 								e.saveDvmWaitingForEvent(nip90Input.Input, waitForEventCh)
 								e.log.Tracef("[engine] dvm %s waiting for event/job %s", dvm.Pk(), input.Input)
 								inputEvent := <-waitForEventCh
 								input.Input = inputEvent.Content
-								input.InputType = "text"
-								if err != nil {
-									e.log.Errorf("[engine] nip90Input from event  %+v\n", err)
-									return
-								}
+								input.InputType = nostr.InputTypeText
 							}
 
 							e.runDvm(ctx, dvm, input)
