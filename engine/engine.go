@@ -209,11 +209,14 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 				}
 
 				e.log.Tracef("[engine] job completed %+v", update)
+				return
 			}
 
 		case err := <-chanErr:
-			e.log.Tracef("[engine] job failed %+v", err)
-			return
+			if err != nil {
+				e.log.Tracef("[engine] job failed %+v", err)
+				return
+			}
 		case <-ctx.Done():
 			e.log.Tracef("[engine] job context canceled")
 			return
