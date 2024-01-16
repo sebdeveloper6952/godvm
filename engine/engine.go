@@ -269,6 +269,7 @@ func (e *Engine) sendFeedbackEvent(
 	return e.nostrSvc.PublishEvent(
 		ctx,
 		*feedbackEvent,
+		input.Relays...,
 	)
 }
 
@@ -304,6 +305,7 @@ func (e *Engine) sendJobResultEvent(
 	return e.nostrSvc.PublishEvent(
 		ctx,
 		*jobResultEvent,
+		input.Relays...,
 	)
 }
 

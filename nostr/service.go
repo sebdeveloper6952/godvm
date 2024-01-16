@@ -128,6 +128,20 @@ func (s *svc) PublishEvent(
 		}
 	}
 
+	for i := range additionalRelays {
+		go func(url string) {
+			relay, err := goNostr.RelayConnect(ctx, url)
+			if err != nil {
+				s.log.Errorf("[nostr] connect to relay %s %+v", url, err)
+				return
+			}
+			if err := relay.Publish(ctx, e); err != nil {
+				s.log.Errorf("[nostr] publish to relay %s %+v", url, err)
+			}
+			relay.Close()
+		}(additionalRelays[i])
+	}
+
 	return nil
 }
 
