@@ -3,10 +3,11 @@ package nostr
 import (
 	"context"
 	"errors"
-	goNostr "github.com/nbd-wtf/go-nostr"
-	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
+
+	goNostr "github.com/nbd-wtf/go-nostr"
+	"github.com/sirupsen/logrus"
 )
 
 type Service interface {

@@ -279,6 +279,7 @@ func (e *Engine) sendFeedbackEvent(
 	}
 
 	dvm.Sign(feedbackEvent)
+
 	return e.nostrSvc.PublishEvent(
 		ctx,
 		*feedbackEvent,
@@ -315,6 +316,7 @@ func (e *Engine) sendJobResultEvent(
 	}
 
 	dvm.Sign(jobResultEvent)
+
 	return e.nostrSvc.PublishEvent(
 		ctx,
 		*jobResultEvent,
