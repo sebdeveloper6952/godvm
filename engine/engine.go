@@ -143,15 +143,13 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 		select {
 		case update := <-chanToEngine:
 			if update.Status == domain.StatusPaymentRequired {
-				i, err := e.lnSvc.AddInvoice(ctx, int64(update.AmountSats))
+				invoice, err := e.addInvoiceAndTrack(ctx, chanToDvm, int64(update.AmountSats))
 				if err != nil {
-					chanToDvm <- &domain.JobUpdate{
-						Status: domain.StatusError,
-					}
+					e.log.Tracef("[nostr] addInvoice %+v\n", err)
 					return
 				}
 
-				update.PaymentRequest = i.PayReq
+				update.PaymentRequest = invoice.PayReq
 				if err := e.sendFeedbackEvent(
 					ctx,
 					dvm,
@@ -160,26 +158,6 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 				); err != nil {
 					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
 				}
-
-				u, e := e.lnSvc.TrackInvoice(ctx, i)
-			trackInvoiceLoop:
-				for {
-					select {
-					case invoiceUpdate := <-u:
-						if invoiceUpdate.Settled {
-							chanToDvm <- &domain.JobUpdate{
-								Status: domain.StatusPaymentCompleted,
-							}
-							break trackInvoiceLoop
-						}
-					case <-e:
-						chanToDvm <- &domain.JobUpdate{
-							Status: domain.StatusError,
-						}
-						return
-					}
-				}
-
 			} else if update.Status == domain.StatusProcessing {
 				if err := e.sendFeedbackEvent(
 					ctx,
@@ -198,6 +176,35 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 				); err != nil {
 					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
 				}
+
+				if err := e.sendJobResultEvent(
+					ctx,
+					dvm,
+					input,
+					update,
+				); err != nil {
+					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+				}
+
+				e.log.Tracef("[engine] job completed %+v", update)
+				return
+			} else if update.Status == domain.StatusSuccessWithPayment {
+				if err := e.sendFeedbackEvent(
+					ctx,
+					dvm,
+					input,
+					update,
+				); err != nil {
+					e.log.Tracef("[nostr] sendEventFeedback %+v\n", err)
+				}
+
+				invoice, err := e.lnSvc.AddInvoice(ctx, int64(update.AmountSats))
+				if err != nil {
+					e.log.Tracef("[nostr] StatusSuccessWithPayment addInvoice %+v\n", err)
+					return
+				}
+				update.PaymentRequest = invoice.PayReq
+
 				if err := e.sendJobResultEvent(
 					ctx,
 					dvm,
@@ -233,6 +240,7 @@ func (e *Engine) advertiseDvms(ctx context.Context) {
 				dvms[i].Pk(),
 				dvms[i].Profile(),
 				[]int{kind},
+				dvms[i].Version(),
 			)
 			dvms[i].Sign(ev)
 			if err := e.nostrSvc.PublishEvent(ctx, *ev); err != nil {
@@ -249,6 +257,43 @@ func (e *Engine) advertiseDvms(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (e *Engine) addInvoiceAndTrack(
+	ctx context.Context,
+	chanToDvm chan *domain.JobUpdate,
+	amountSats int64,
+) (*lightning.Invoice, error) {
+	invoice, err := e.lnSvc.AddInvoice(ctx, amountSats)
+	if err != nil {
+		chanToDvm <- &domain.JobUpdate{
+			Status: domain.StatusError,
+		}
+		return nil, err
+	}
+
+	go func() {
+		u, e := e.lnSvc.TrackInvoice(ctx, invoice)
+	trackInvoiceLoop:
+		for {
+			select {
+			case invoiceUpdate := <-u:
+				if invoiceUpdate.Settled {
+					chanToDvm <- &domain.JobUpdate{
+						Status: domain.StatusPaymentCompleted,
+					}
+					break trackInvoiceLoop
+				}
+			case <-e:
+				chanToDvm <- &domain.JobUpdate{
+					Status: domain.StatusError,
+				}
+				return
+			}
+		}
+	}()
+
+	return invoice, nil
 }
 
 func (e *Engine) sendFeedbackEvent(
@@ -317,6 +362,17 @@ func (e *Engine) sendJobResultEvent(
 		}
 
 		tags = append(tags, tag)
+	}
+
+	if update.Status == domain.StatusSuccessWithPayment && update.PaymentRequest != "" {
+		tags = append(
+			tags,
+			goNostr.Tag{
+				"amount",
+				fmt.Sprintf("%d", update.AmountSats*1000),
+				update.PaymentRequest,
+			},
+		)
 	}
 
 	jobResultEvent := &goNostr.Event{

@@ -12,6 +12,7 @@ TODO List
   - [x] job request input as url
   - [x] parse job input marker to be forwarded to DVMs
   - [x] job request input output of another job
+  - [] fix dvm advertisement (use same d tag)
   - [] wait for multiple events/jobs for input to dvm
   - [] encrypted job params
   - [] support zaps

@@ -1,29 +1,20 @@
 package nostr
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	goNostr "github.com/nbd-wtf/go-nostr"
-	"math"
 )
 
 const (
 	KindHandlerInformation = 31990
 )
 
-func randomBase16String(l int) string {
-	buff := make([]byte, int(math.Ceil(float64(l)/2)))
-	rand.Read(buff)
-	str := hex.EncodeToString(buff)
-	return str[:l] // strip 1 extra character we get from odd length results
-}
-
 func NewHandlerInformationEvent(
 	pk string,
 	profile *ProfileMetadata,
 	supportedEventKinds []int,
+	dTagVersion string,
 ) *goNostr.Event {
 	e := &goNostr.Event{
 		PubKey:    pk,
@@ -35,7 +26,7 @@ func NewHandlerInformationEvent(
 	e.Content = string(profileBytes)
 
 	tags := goNostr.Tags{
-		{"d", randomBase16String(16)},
+		{"d", dTagVersion},
 	}
 
 	for i := range supportedEventKinds {
