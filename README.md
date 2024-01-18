@@ -10,8 +10,9 @@ TODO List
   - [x] job request input as text
   - [x] job request input as event
   - [x] job request input as url
-  - [] job request input output of another job
+  - [x] parse job input marker to be forwarded to DVMs
+  - [x] job request input output of another job
+  - [] wait for multiple events/jobs for input to dvm
   - [] encrypted job params
-  - [] parse job input marker to be forwarded to DVMs
   - [] support zaps
 - remove logrus logger library, use standard "log"

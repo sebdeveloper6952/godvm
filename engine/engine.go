@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	goNostr "github.com/nbd-wtf/go-nostr"
 	"github.com/sebdeveloper6952/go-dvm/domain"
@@ -91,42 +92,40 @@ func (e *Engine) Run(
 					continue
 				}
 
-				if nip90Input.InputType == nostr.InputTypeEvent || nip90Input.InputType == nostr.InputTypeJob {
-					go func() {
-						if err := e.nostrSvc.FetchEvent(ctx, nip90Input.Input); err != nil {
-							e.log.Errorf("[engine] fetch event for job input %+v", err)
-							return
-						}
-						e.log.Tracef("[engine] fetched event for job input")
-					}()
+				// if the inputs are asking for events/jobs, we fetch them here before proceeding
+				var wg sync.WaitGroup
+				for inputIdx := range nip90Input.Inputs {
+					if nip90Input.Inputs[inputIdx].Type == nostr.InputTypeEvent ||
+						nip90Input.Inputs[inputIdx].Type == nostr.InputTypeJob {
+						wg.Add(1)
+						go func(input *nostr.Input) {
+							defer wg.Done()
+
+							// TODO: must handle when the event is not found, only when the input type is "event".
+							//       When input type is "job", we have to wait no matter what, because it could
+							//       be a job that is completed in the future.
+							waitCh, err := e.nostrSvc.FetchEvent(ctx, input.Value)
+							if err != nil {
+								e.log.Errorf("[engine] fetch event for job input %+v", err)
+								return
+							}
+							input.Event = <-waitCh
+
+							e.log.Tracef("[engine] fetched event for job input")
+
+						}(nip90Input.Inputs[inputIdx])
+					}
 				}
+				wg.Wait()
+
+				e.log.Tracef("[engine] finished waiting for input events")
 
 				for i := range dvmsForKind {
 					go func(dvm domain.Dvmer, input *nostr.Nip90Input) {
 						if dvm.AcceptJob(input) {
-							// if input type is event or job, wait for event, then run DVM
-							if nip90Input.InputType == nostr.InputTypeEvent ||
-								nip90Input.InputType == nostr.InputTypeJob {
-								waitForEventCh := make(chan *goNostr.Event)
-								e.saveDvmWaitingForEvent(nip90Input.Input, waitForEventCh)
-								e.log.Tracef("[engine] dvm %s waiting for event/job %s", dvm.Pk(), input.Input)
-								inputEvent := <-waitForEventCh
-								input.Input = inputEvent.Content
-								input.InputType = nostr.InputTypeText
-							}
-
 							e.runDvm(ctx, dvm, input)
 						}
 					}(dvmsForKind[i], nip90Input)
-				}
-			case event := <-e.nostrSvc.InputEvents():
-				dvmsWaiting, exist := e.waitingForEvent[event.ID]
-				if exist {
-					for i := range dvmsWaiting {
-						dvmsWaiting[i] <- event
-						close(dvmsWaiting[i])
-					}
-					delete(e.waitingForEvent, event.ID)
 				}
 			case <-ctx.Done():
 				return
@@ -293,17 +292,39 @@ func (e *Engine) sendJobResultEvent(
 	input *nostr.Nip90Input,
 	update *domain.JobUpdate,
 ) error {
+	tags := goNostr.Tags{
+		{"request", input.JobRequestEventJSON},
+		{"e", input.JobRequestId},
+		{"p", input.CustomerPubkey},
+	}
+
+	for i := range input.Inputs {
+		tag := goNostr.Tag{
+			"i",
+			input.Inputs[i].Value,
+		}
+
+		if input.Inputs[i].Type != "" {
+			tag = append(tag, input.Inputs[i].Type)
+		}
+
+		if input.Inputs[i].Relay != "" {
+			tag = append(tag, input.Inputs[i].Relay)
+		}
+
+		if input.Inputs[i].Marker != "" {
+			tag = append(tag, input.Inputs[i].Marker)
+		}
+
+		tags = append(tags, tag)
+	}
+
 	jobResultEvent := &goNostr.Event{
 		PubKey:    dvm.Pk(),
 		CreatedAt: goNostr.Now(),
 		Kind:      input.ResultKind,
 		Content:   update.Result,
-		Tags: goNostr.Tags{
-			{"request", input.JobRequestEventJSON},
-			{"e", input.JobRequestId},
-			{"p", input.CustomerPubkey},
-			{"i", input.Input},
-		},
+		Tags:      tags,
 	}
 
 	if update.Status == domain.StatusPaymentRequired {

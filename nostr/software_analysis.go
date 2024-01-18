@@ -11,15 +11,21 @@ type MalwareScanningInput struct {
 }
 
 func MalwareScanningInputFromNip90Input(i *Nip90Input) (*MalwareScanningInput, error) {
-	if i.Input == "" {
-		return nil, errors.New("prompt is required")
+	if i.Inputs == nil || len(i.Inputs) != 1 {
+		return nil, errors.New("must provide exactly 1 URL")
 	}
 
-	if _, err := url.ParseRequestURI(i.Input); err != nil {
-		return nil, fmt.Errorf("invalid url %s %w", i.Input, err)
+	input := i.Inputs[0]
+
+	if _, err := url.ParseRequestURI(input.Value); err != nil {
+		return nil, fmt.Errorf("invalid url %s %w", input.Value, err)
+	}
+
+	if input.Type != "url" {
+		return nil, fmt.Errorf("invalid input type %s", input.Value)
 	}
 
 	return &MalwareScanningInput{
-		URL: i.Input,
+		URL: i.Inputs[0].Value,
 	}, nil
 }

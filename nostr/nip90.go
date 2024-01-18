@@ -52,13 +52,19 @@ var (
 	}
 )
 
+type Input struct {
+	Value  string
+	Type   string
+	Relay  string
+	Marker string
+	Event  *goNostr.Event
+}
+
 type Nip90Input struct {
 	JobRequestId        string
 	CustomerPubkey      string
-	Input               string
-	InputType           string
+	Inputs              []*Input
 	Relay               string
-	Marker              string
 	Output              string
 	Params              [][2]string
 	BidMillisats        int
@@ -75,6 +81,7 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 		Params:         make([][2]string, 0),
 		Event:          e,
 		ResultKind:     responseKind(e.Kind),
+		Inputs:         make([]*Input, 0, 1),
 	}
 
 	eventJson, err := json.Marshal(e)
@@ -86,16 +93,23 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 	for i := range e.Tags {
 		if len(e.Tags[i]) > 1 {
 			if e.Tags[i][0] == "i" {
-				input.Input = e.Tags[i][1]
+				newInput := &Input{
+					Value: e.Tags[i][1],
+				}
+
 				if len(e.Tags[i]) > 2 {
-					input.InputType = e.Tags[i][2]
+					newInput.Type = e.Tags[i][2]
 				}
+
 				if len(e.Tags[i]) > 3 {
-					input.Relay = e.Tags[i][3]
+					newInput.Relay = e.Tags[i][3]
 				}
-				if len(e.Tags[i]) > 4 {
-					input.Marker = e.Tags[i][4]
+
+				if len(e.Tags[i]) == 5 {
+					newInput.Marker = e.Tags[i][4]
 				}
+
+				input.Inputs = append(input.Inputs, newInput)
 			} else if e.Tags[i][0] == "output" {
 				input.Output = e.Tags[i][1]
 			} else if e.Tags[i][0] == "param" && len(e.Tags[i]) == 3 {

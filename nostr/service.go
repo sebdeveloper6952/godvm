@@ -23,7 +23,11 @@ type Service interface {
 		e goNostr.Event,
 		additionalRelays ...string,
 	) error
-	FetchEvent(ctx context.Context, id string) error
+	FetchEvent(
+		ctx context.Context,
+		id string,
+		additionalRelays ...string,
+	) (chan *goNostr.Event, error)
 }
 
 type svc struct {
@@ -146,45 +150,67 @@ func (s *svc) PublishEvent(
 	return nil
 }
 
-func (s *svc) FetchEvent(ctx context.Context, id string) error {
+func (s *svc) FetchEvent(
+	ctx context.Context,
+	id string,
+	additionalRelays ...string,
+) (chan *goNostr.Event, error) {
 	var (
 		filters = []goNostr.Filter{
 			{IDs: []string{id}},
 		}
 		wg                sync.WaitGroup
 		subCtx, cancelCtx = context.WithCancel(ctx)
+		eventCh           = make(chan *goNostr.Event)
 	)
 
-	wg.Add(len(s.relays))
-	for i := range s.relays {
-		go func(relay *goNostr.Relay) {
-			defer wg.Done()
+	searchRelays := make([]*goNostr.Relay, 0, len(s.relays))
+	searchRelays = append(searchRelays, s.relays...)
 
-			sub, err := relay.Subscribe(subCtx, filters)
-			if err != nil {
-				s.log.Errorf("[nostr] %+v\n", err)
-				return
-			}
-
-			for {
-				select {
-				case event := <-sub.Events:
-					if event != nil {
-						s.log.Tracef("[nostr] received requested event %s %+v\n", relay.URL, event)
-						s.inputEvents <- event
-						sub.Close()
-						cancelCtx()
-						return
-					}
-				case <-subCtx.Done():
-					return
-				}
-			}
-		}(s.relays[i])
+	for i := range additionalRelays {
+		relay, err := goNostr.RelayConnect(ctx, additionalRelays[i])
+		if err != nil {
+			s.log.Warnf("[nostr] connect/fetch event from relay %s", additionalRelays[i])
+			continue
+		}
+		searchRelays = append(searchRelays, relay)
 	}
 
-	wg.Wait()
-	cancelCtx()
+	go func() {
+		wg.Add(len(s.relays))
+		for i := range s.relays {
+			go func(relay *goNostr.Relay) {
+				defer func() {
+					wg.Done()
+				}()
 
-	return nil
+				sub, err := relay.Subscribe(subCtx, filters)
+				if err != nil {
+					s.log.Errorf("[nostr] %+v\n", err)
+					return
+				}
+
+				for {
+					select {
+					case event := <-sub.Events:
+						if event != nil {
+							s.log.Tracef("[nostr] received requested event %s %+v\n", relay.URL, event)
+							eventCh <- event
+							sub.Close()
+							cancelCtx()
+							return
+						}
+					case <-subCtx.Done():
+						return
+					}
+				}
+			}(s.relays[i])
+		}
+
+		wg.Wait()
+		close(eventCh)
+		cancelCtx()
+	}()
+
+	return eventCh, nil
 }
