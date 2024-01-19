@@ -112,7 +112,6 @@ func (e *Engine) Run(
 							input.Event = <-waitCh
 
 							e.log.Tracef("[engine] fetched event for job input")
-
 						}(nip90Input.Inputs[inputIdx])
 					}
 				}

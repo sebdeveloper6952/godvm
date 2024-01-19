@@ -18,6 +18,7 @@ type lnbits struct {
 type payment struct {
 	Out    bool `json:"out"`
 	Amount int  `json:"amount"`
+	Expiry int  `json:"expiry"`
 }
 
 type paymentResponse struct {
@@ -40,6 +41,7 @@ func (l lnbits) AddInvoice(ctx context.Context, amountSats int64) (*lightning.In
 	body := &payment{
 		Out:    false,
 		Amount: int(amountSats),
+		Expiry: 900,
 	}
 
 	bodyBytes, err := json.Marshal(body)
