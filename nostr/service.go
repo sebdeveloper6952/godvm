@@ -65,7 +65,8 @@ func (s *svc) Run(
 	for i := range initialRelays {
 		relay, err := goNostr.RelayConnect(ctx, initialRelays[i])
 		if err != nil {
-			return err
+			s.log.Tracef("[engine] could not connect to relay %s", initialRelays[i])
+			continue
 		}
 		s.relays = append(s.relays, relay)
 	}
