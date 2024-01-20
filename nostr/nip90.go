@@ -2,8 +2,9 @@ package nostr
 
 import (
 	"encoding/json"
-	goNostr "github.com/nbd-wtf/go-nostr"
 	"strconv"
+
+	goNostr "github.com/nbd-wtf/go-nostr"
 )
 
 const (

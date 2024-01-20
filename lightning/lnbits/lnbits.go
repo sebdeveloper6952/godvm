@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/lightningnetwork/lnd/lntypes"
-	"github.com/sebdeveloper6952/go-dvm/lightning"
 	"net/http"
 	"time"
+
+	"github.com/lightningnetwork/lnd/lntypes"
+
+	"github.com/sebdeveloper6952/go-dvm/lightning"
 )
 
 type lnbits struct {

@@ -46,6 +46,10 @@ func NewEngine() (*Engine, error) {
 	return e, nil
 }
 
+func (e *Engine) SetLogLevel(level logrus.Level) {
+	e.log.SetLevel(level)
+}
+
 func (e *Engine) RegisterDVM(dvm domain.Dvmer) {
 	kindSupported := dvm.KindSupported()
 	if _, ok := e.dvmsByKind[kindSupported]; !ok {

@@ -2,7 +2,9 @@ package domain
 
 import (
 	"context"
+
 	goNostr "github.com/nbd-wtf/go-nostr"
+
 	"github.com/sebdeveloper6952/go-dvm/nostr"
 )
 

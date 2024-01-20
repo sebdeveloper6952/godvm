@@ -2,6 +2,7 @@ package lightning
 
 import (
 	"context"
+
 	"github.com/lightningnetwork/lnd/lntypes"
 )
 

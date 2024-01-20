@@ -3,6 +3,7 @@ package nostr
 import (
 	"encoding/json"
 	"fmt"
+
 	goNostr "github.com/nbd-wtf/go-nostr"
 )
 
