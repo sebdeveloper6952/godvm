@@ -145,7 +145,17 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 	for {
 		select {
 		case update := <-chanToEngine:
-			if update.Status == domain.StatusPaymentRequired {
+			if update.Status == domain.StatusError {
+				if err := e.sendFeedbackEvent(
+					ctx,
+					dvm,
+					input,
+					update,
+				); err != nil {
+					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+				}
+				return
+			} else if update.Status == domain.StatusPaymentRequired {
 				invoice, err := e.addInvoiceAndTrack(ctx, chanToDvm, int64(update.AmountSats))
 				if err != nil {
 					e.log.Tracef("[nostr] addInvoice %+v\n", err)
