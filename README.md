@@ -14,6 +14,6 @@ TODO List
   - [x] job request input output of another job
   - [x] fix dvm advertisement (use same d tag)
   - [x] wait for multiple events/jobs for input to dvm
-  - [ ] include bid amount in input to DVMs so they can decide to accept/reject the job
+  - [x] include bid amount in input to DVMs so they can decide to accept/reject the job
   - [ ] encrypted job params
   - [ ] support zaps
