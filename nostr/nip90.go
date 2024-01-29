@@ -73,6 +73,7 @@ type Nip90Input struct {
 	JobRequestEventJSON string
 	Event               *goNostr.Event
 	ResultKind          int
+	TaggedPubkeys       map[string]struct{}
 }
 
 func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
@@ -83,6 +84,7 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 		Event:          e,
 		ResultKind:     responseKind(e.Kind),
 		Inputs:         make([]*Input, 0, 1),
+		TaggedPubkeys:  make(map[string]struct{}),
 	}
 
 	eventJson, err := json.Marshal(e)
@@ -121,6 +123,8 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 					return nil, err
 				}
 				input.BidMillisats = bidMillisats
+			} else if e.Tags[i][0] == "p" && len(e.Tags[i]) == 2 {
+				input.TaggedPubkeys[e.Tags[i][0]] = struct{}{}
 			}
 		}
 	}
