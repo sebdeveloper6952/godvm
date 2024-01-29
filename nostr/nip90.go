@@ -124,7 +124,7 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 				}
 				input.BidMillisats = bidMillisats
 			} else if e.Tags[i][0] == "p" && len(e.Tags[i]) == 2 {
-				input.TaggedPubkeys[e.Tags[i][0]] = struct{}{}
+				input.TaggedPubkeys[e.Tags[i][1]] = struct{}{}
 			}
 		}
 	}
