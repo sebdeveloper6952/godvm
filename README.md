@@ -12,7 +12,10 @@ Every time I want to write a new DVM, I don't want to write the same stuff:
 Make you focus on your DVM logic.
 
 ### Typical Request Flow Chart
-![typical-flow](https://github.com/sebdeveloper6952/godvm/assets/18562903/26d09749-d608-4eea-9605-dbff83533387)
+![payment-flow](https://github.com/sebdeveloper6952/godvm/assets/18562903/73336930-475f-4714-bd10-b6c3f0739f62)
+
+### Example
+Refer to the examples folder for complete code examples.
 
 TODO
 - [ ] fully implement nip-90
