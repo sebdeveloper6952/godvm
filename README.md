@@ -2,7 +2,7 @@ Go-DVM
 
 DVM engine to write DVMs on top.
 
-TODO List
+TODO
 - [ ] fully implement nip-90
   - [x] add job kinds 
   - [x] advertise DVMs nip-89
