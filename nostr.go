@@ -3,11 +3,11 @@ package godvm
 import (
 	"context"
 	"errors"
+	"log"
 	"sync"
 	"time"
 
 	goNostr "github.com/nbd-wtf/go-nostr"
-	"github.com/sirupsen/logrus"
 )
 
 type NostrService interface {
@@ -36,11 +36,11 @@ type svc struct {
 	inputEvents      chan *goNostr.Event
 	supportedKinds   []int
 	seenEvents       map[string]struct{}
-	log              *logrus.Logger
+	log              *log.Logger
 }
 
 func NewNostrService(
-	log *logrus.Logger,
+	log *log.Logger,
 ) (NostrService, error) {
 	return &svc{
 		jobRequestEvents: make(chan *goNostr.Event),
@@ -65,7 +65,7 @@ func (s *svc) Run(
 	for i := range initialRelays {
 		relay, err := goNostr.RelayConnect(ctx, initialRelays[i])
 		if err != nil {
-			s.log.Tracef("[engine] could not connect to relay %s", initialRelays[i])
+			s.log.Printf("could not connect to relay %s", initialRelays[i])
 			continue
 		}
 		s.relays = append(s.relays, relay)
@@ -86,7 +86,7 @@ func (s *svc) Run(
 			go func(relay *goNostr.Relay) {
 				sub, err := relay.Subscribe(ctx, filters)
 				if err != nil {
-					s.log.Errorf("[nostr] %+v\n", err)
+					s.log.Printf("%+v\n", err)
 					return
 				}
 
@@ -97,7 +97,7 @@ func (s *svc) Run(
 							if _, exist := s.seenEvents[event.ID]; exist {
 								continue
 							}
-							s.log.Tracef("[nostr] received event %+v\n", event)
+							s.log.Printf("received event %+v\n", event)
 							s.seenEvents[event.ID] = struct{}{}
 							s.jobRequestEvents <- event
 						}
@@ -126,11 +126,11 @@ func (s *svc) PublishEvent(
 	e goNostr.Event,
 	additionalRelays ...string,
 ) error {
-	s.log.Tracef("[nostr] publish event %+v\n", e)
+	s.log.Printf("publish event %+v\n", e)
 
 	for i := range s.relays {
 		if err := s.relays[i].Publish(ctx, e); err != nil {
-			s.log.Errorf("[nostr] publish to relay %s %+v", s.relays[i].URL, err)
+			s.log.Printf("publish to relay %s %+v", s.relays[i].URL, err)
 		}
 	}
 
@@ -138,11 +138,11 @@ func (s *svc) PublishEvent(
 		go func(url string) {
 			relay, err := goNostr.RelayConnect(ctx, url)
 			if err != nil {
-				s.log.Errorf("[nostr] connect to relay %s %+v", url, err)
+				s.log.Printf("connect to relay %s %+v", url, err)
 				return
 			}
 			if err := relay.Publish(ctx, e); err != nil {
-				s.log.Errorf("[nostr] publish to relay %s %+v", url, err)
+				s.log.Printf("publish to relay %s %+v", url, err)
 			}
 			relay.Close()
 		}(additionalRelays[i])
@@ -171,7 +171,7 @@ func (s *svc) FetchEvent(
 	for i := range additionalRelays {
 		relay, err := goNostr.RelayConnect(ctx, additionalRelays[i])
 		if err != nil {
-			s.log.Warnf("[nostr] connect/fetch event from relay %s", additionalRelays[i])
+			s.log.Printf("connect/fetch event from relay %s", additionalRelays[i])
 			continue
 		}
 		searchRelays = append(searchRelays, relay)
@@ -187,7 +187,7 @@ func (s *svc) FetchEvent(
 
 				sub, err := relay.Subscribe(subCtx, filters)
 				if err != nil {
-					s.log.Errorf("[nostr] %+v\n", err)
+					s.log.Printf("%+v\n", err)
 					return
 				}
 
@@ -195,7 +195,7 @@ func (s *svc) FetchEvent(
 					select {
 					case event := <-sub.Events:
 						if event != nil {
-							s.log.Tracef("[nostr] received requested event %s %+v\n", relay.URL, event)
+							s.log.Printf("received requested event %s %+v\n", relay.URL, event)
 							eventCh <- event
 							sub.Close()
 							cancelCtx()

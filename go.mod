@@ -6,7 +6,6 @@ require (
 	github.com/lightninglabs/lndclient v0.17.0-4
 	github.com/lightningnetwork/lnd v0.17.1-beta
 	github.com/nbd-wtf/go-nostr v0.27.5
-	github.com/sirupsen/logrus v1.9.2
 )
 
 require (
@@ -67,7 +66,6 @@ require (
 	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/jackc/pgx/v4 v4.18.1 // indirect
 	github.com/jessevdk/go-flags v1.4.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/jrick/logrotate v1.0.0 // indirect
@@ -107,6 +105,7 @@ require (
 	github.com/puzpuzpuz/xsync/v2 v2.5.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	github.com/rogpeppe/fastuuid v1.2.0 // indirect
+	github.com/sirupsen/logrus v1.9.2 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect

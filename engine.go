@@ -4,28 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"sync"
 
 	goNostr "github.com/nbd-wtf/go-nostr"
 	"github.com/sebdeveloper6952/godvm/lightning"
-	"github.com/sirupsen/logrus"
 )
 
 type Engine struct {
 	dvmsByKind      map[int][]Dvmer
 	nostrSvc        NostrService
 	lnSvc           lightning.Service
-	log             *logrus.Logger
+	log             *log.Logger
 	waitingForEvent map[string][]chan *goNostr.Event
 }
 
 func NewEngine() (*Engine, error) {
-	logger := logrus.New()
-	logger.SetFormatter(&logrus.TextFormatter{
-		DisableColors: false,
-		FullTimestamp: true,
-	})
-	logger.SetLevel(logrus.TraceLevel)
+	logger := log.New(os.Stderr, "[godvm] ", log.LstdFlags)
 
 	nostrSvc, err := NewNostrService(
 		logger,
@@ -42,10 +38,6 @@ func NewEngine() (*Engine, error) {
 	}
 
 	return e, nil
-}
-
-func (e *Engine) SetLogLevel(level logrus.Level) {
-	e.log.SetLevel(level)
 }
 
 func (e *Engine) RegisterDVM(dvm Dvmer) {
@@ -72,7 +64,7 @@ func (e *Engine) Run(
 
 	go func() {
 		if err := e.nostrSvc.Run(ctx, kindsSupported, initialRelays); err != nil {
-			e.log.Errorf("[engine] run nostr service %+v", err)
+			e.log.Printf("run nostr service %+v", err)
 		}
 
 		e.advertiseDvms(ctx)
@@ -84,13 +76,13 @@ func (e *Engine) Run(
 			case event := <-e.nostrSvc.JobRequestEvents():
 				dvmsForKind, ok := e.dvmsByKind[event.Kind]
 				if !ok {
-					e.log.Debugf("[engine] no dvms for kind %d\n", event.Kind)
+					e.log.Printf("no dvms for kind %d\n", event.Kind)
 					continue
 				}
 
 				nip90Input, err := Nip90InputFromJobRequestEvent(event)
 				if err != nil {
-					e.log.Errorf("[engine] nip90Input from event  %+v\n", err)
+					e.log.Printf("nip90Input from event  %+v\n", err)
 					continue
 				}
 
@@ -108,23 +100,23 @@ func (e *Engine) Run(
 							//       be a job that is completed in the future.
 							waitCh, err := e.nostrSvc.FetchEvent(ctx, input.Value)
 							if err != nil {
-								e.log.Errorf("[engine] fetch event for job input %+v", err)
+								e.log.Printf("fetch event for job input %+v", err)
 								return
 							}
 							input.Event = <-waitCh
 
-							e.log.Tracef("[engine] fetched event for job input")
+							e.log.Printf("fetched event for job input")
 						}(nip90Input.Inputs[inputIdx])
 					}
 				}
 				wg.Wait()
 
-				e.log.Tracef("[engine] finished waiting for input events")
+				e.log.Printf("finished waiting for input events")
 
 				for i := range dvmsForKind {
 					go func(dvm Dvmer, input *Nip90Input) {
 						if err := e.runDvm(ctx, dvm, input); err != nil {
-							e.log.Error(err)
+							e.log.Println(err)
 						}
 					}(dvmsForKind[i], nip90Input)
 				}
@@ -233,7 +225,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) error
 				return err
 			}
 		case <-ctx.Done():
-			e.log.Tracef("[engine] job context canceled")
+			e.log.Printf("job context canceled")
 			return nil
 		}
 	}
@@ -253,7 +245,7 @@ func (e *Engine) advertiseDvms(ctx context.Context) {
 			)
 			dvms[i].Sign(ev)
 			if err := e.nostrSvc.PublishEvent(ctx, *ev); err != nil {
-				e.log.Errorf("[engine] publish nip-89 %s %+v", dvms[i].PublicKeyHex(), err)
+				e.log.Printf("publish nip-89 %s %+v", dvms[i].PublicKeyHex(), err)
 			}
 
 			profileEv := NewProfileMetadataEvent(
@@ -262,7 +254,7 @@ func (e *Engine) advertiseDvms(ctx context.Context) {
 			)
 			dvms[i].Sign(profileEv)
 			if err := e.nostrSvc.PublishEvent(ctx, *profileEv); err != nil {
-				e.log.Errorf("[engine] publish profile %s %+v", dvms[i].PublicKeyHex(), err)
+				e.log.Printf("publish profile %s %+v", dvms[i].PublicKeyHex(), err)
 			}
 		}
 	}
