@@ -123,8 +123,8 @@ func (e *Engine) Run(
 
 				for i := range dvmsForKind {
 					go func(dvm Dvmer, input *Nip90Input) {
-						if dvm.AcceptJob(input) {
-							e.runDvm(ctx, dvm, input)
+						if err := e.runDvm(ctx, dvm, input); err != nil {
+							e.log.Error(err)
 						}
 					}(dvmsForKind[i], nip90Input)
 				}
@@ -137,8 +137,17 @@ func (e *Engine) Run(
 	return nil
 }
 
-func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
-	chanToDvm, chanToEngine, chanErr := dvm.Run(ctx, input)
+func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) error {
+	chanToDvm := make(chan *JobUpdate)
+	chanToEngine := make(chan *JobUpdate)
+
+	defer func() {
+		close(chanToDvm)
+	}()
+
+	if !dvm.Run(ctx, input, chanToDvm, chanToEngine) {
+		return errors.New("job not accepted by DVM")
+	}
 
 	for {
 		select {
@@ -150,14 +159,12 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
 					input,
 					update,
 				); err != nil {
-					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+					return err
 				}
-				return
 			} else if update.Status == StatusPaymentRequired {
 				invoice, err := e.addInvoiceAndTrack(ctx, chanToDvm, int64(update.AmountSats))
 				if err != nil {
-					e.log.Tracef("[nostr] addInvoice %+v\n", err)
-					return
+					return err
 				}
 
 				update.PaymentRequest = invoice.PayReq
@@ -167,7 +174,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
 					input,
 					update,
 				); err != nil {
-					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+					return err
 				}
 			} else if update.Status == StatusProcessing {
 				if err := e.sendFeedbackEvent(
@@ -176,7 +183,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
 					input,
 					update,
 				); err != nil {
-					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+					return err
 				}
 			} else if update.Status == StatusSuccess {
 				if err := e.sendFeedbackEvent(
@@ -185,7 +192,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
 					input,
 					update,
 				); err != nil {
-					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+					return err
 				}
 
 				if err := e.sendJobResultEvent(
@@ -194,11 +201,10 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
 					input,
 					update,
 				); err != nil {
-					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+					return err
 				}
 
-				e.log.Tracef("[engine] job completed %+v", update)
-				return
+				return nil
 			} else if update.Status == StatusSuccessWithPayment {
 				if err := e.sendFeedbackEvent(
 					ctx,
@@ -206,13 +212,12 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
 					input,
 					update,
 				); err != nil {
-					e.log.Tracef("[nostr] sendEventFeedback %+v\n", err)
+					return err
 				}
 
 				invoice, err := e.lnSvc.AddInvoice(ctx, int64(update.AmountSats))
 				if err != nil {
-					e.log.Tracef("[nostr] StatusSuccessWithPayment addInvoice %+v\n", err)
-					return
+					return err
 				}
 				update.PaymentRequest = invoice.PayReq
 
@@ -222,21 +227,14 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
 					input,
 					update,
 				); err != nil {
-					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
+					return err
 				}
 
-				e.log.Tracef("[engine] job completed %+v", update)
-				return
-			}
-
-		case err := <-chanErr:
-			if err != nil {
-				e.log.Tracef("[engine] job failed %+v", err)
-				return
+				return err
 			}
 		case <-ctx.Done():
 			e.log.Tracef("[engine] job context canceled")
-			return
+			return nil
 		}
 	}
 }
@@ -272,7 +270,7 @@ func (e *Engine) advertiseDvms(ctx context.Context) {
 
 func (e *Engine) addInvoiceAndTrack(
 	ctx context.Context,
-	chanToDvm chan *JobUpdate,
+	chanToDvm chan<- *JobUpdate,
 	amountSats int64,
 ) (*lightning.Invoice, error) {
 	invoice, err := e.lnSvc.AddInvoice(ctx, amountSats)

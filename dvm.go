@@ -11,8 +11,12 @@ type Dvmer interface {
 	Sign(e *goNostr.Event) error
 	KindSupported() int
 	Version() string
-	AcceptJob(input *Nip90Input) bool
-	Run(ctx context.Context, input *Nip90Input) (chan *JobUpdate, chan *JobUpdate, chan error)
+	Run(
+		ctx context.Context,
+		input *Nip90Input,
+		chanToDvm <-chan *JobUpdate,
+		chanToEngine chan<- *JobUpdate,
+	) bool
 	Profile() *ProfileMetadata
 }
 
