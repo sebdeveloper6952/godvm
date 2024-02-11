@@ -1,6 +1,18 @@
 Go-DVM
 
-DVM engine to write DVMs on top.
+A simple library to write DVMs using golang.
+
+### Motivation
+Every time I want to write a new DVM, I don't want to write the same stuff:
+- relay logic
+- event logic
+- payment logic
+
+### Objective
+Make you focus on your DVM logic.
+
+### Typical Request Flow Chart
+![typical-flow](https://github.com/sebdeveloper6952/godvm/assets/18562903/26d09749-d608-4eea-9605-dbff83533387)
 
 TODO
 - [ ] fully implement nip-90
