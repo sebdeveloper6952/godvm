@@ -9,10 +9,15 @@ Every time I want to write a new DVM, I don't want to write the same stuff:
 - payment logic
 
 ### Objective
-Make you focus on your DVM logic.
+Make you focus on your DVM logic. 
 
-### Typical Request Flow Chart
-![payment-flow](https://github.com/sebdeveloper6952/godvm/assets/18562903/73336930-475f-4714-bd10-b6c3f0739f62)
+### Features
+- relay connection handling
+- listen to job request events
+- publish job feedback and result events
+- publish kind `0` (Profile Metadata) and kind `31990` (NIP-89 Application Handler) events for discoverability of your DVM.
+
+Refer to [NIP-90](https://github.com/nostr-protocol/nips/blob/master/90.md) for more information.
 
 ### Example
 Refer to the examples folder for complete code examples.
