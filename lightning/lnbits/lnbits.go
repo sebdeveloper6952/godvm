@@ -9,7 +9,7 @@ import (
 
 	"github.com/lightningnetwork/lnd/lntypes"
 
-	"github.com/sebdeveloper6952/go-dvm/lightning"
+	"github.com/sebdeveloper6952/godvm/lightning"
 )
 
 type lnbits struct {

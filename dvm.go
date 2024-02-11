@@ -1,11 +1,9 @@
-package domain
+package godvm
 
 import (
 	"context"
 
 	goNostr "github.com/nbd-wtf/go-nostr"
-
-	"github.com/sebdeveloper6952/go-dvm/nostr"
 )
 
 type Dvmer interface {
@@ -13,9 +11,9 @@ type Dvmer interface {
 	Sign(e *goNostr.Event) error
 	KindSupported() int
 	Version() string
-	AcceptJob(input *nostr.Nip90Input) bool
-	Run(ctx context.Context, input *nostr.Nip90Input) (chan *JobUpdate, chan *JobUpdate, chan error)
-	Profile() *nostr.ProfileMetadata
+	AcceptJob(input *Nip90Input) bool
+	Run(ctx context.Context, input *Nip90Input) (chan *JobUpdate, chan *JobUpdate, chan error)
+	Profile() *ProfileMetadata
 }
 
 type Dvm struct {

@@ -1,4 +1,4 @@
-module github.com/sebdeveloper6952/go-dvm
+module github.com/sebdeveloper6952/godvm
 
 go 1.21.5
 

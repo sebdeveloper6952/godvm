@@ -1,4 +1,4 @@
-package nostr
+package godvm
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type Service interface {
+type NostrService interface {
 	Run(
 		ctx context.Context,
 		dvmSupportedKinds []int,
@@ -39,9 +39,9 @@ type svc struct {
 	log              *logrus.Logger
 }
 
-func NewNostr(
+func NewNostrService(
 	log *logrus.Logger,
-) (Service, error) {
+) (NostrService, error) {
 	return &svc{
 		jobRequestEvents: make(chan *goNostr.Event),
 		inputEvents:      make(chan *goNostr.Event),

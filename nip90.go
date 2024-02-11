@@ -1,4 +1,4 @@
-package nostr
+package godvm
 
 import (
 	"encoding/json"
@@ -20,6 +20,7 @@ const (
 	KindReqNpubDiscovery     = 5301
 	KindReqNostrEventCount   = 5400
 	KindReqMalwareScan       = 5500
+	KindReqAppAnalysis       = 5501
 	KindReqEventTimestamping = 5900
 	KindReqBitcoinOpReturn   = 5901
 
@@ -35,6 +36,7 @@ const (
 	KindResNpubDiscovery     = 6301
 	KindResNostrEventCount   = 6400
 	KindResMalwareScan       = 6500
+	KindResAppAnalysis       = 6501
 	KindResEventTimestamping = 6900
 	KindResBitcoinOpReturn   = 6901
 

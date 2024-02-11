@@ -1,4 +1,4 @@
-package nostr
+package godvm
 
 import (
 	"encoding/json"

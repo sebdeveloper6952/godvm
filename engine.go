@@ -1,4 +1,4 @@
-package engine
+package godvm
 
 import (
 	"context"
@@ -7,15 +7,13 @@ import (
 	"sync"
 
 	goNostr "github.com/nbd-wtf/go-nostr"
-	"github.com/sebdeveloper6952/go-dvm/domain"
-	"github.com/sebdeveloper6952/go-dvm/lightning"
-	"github.com/sebdeveloper6952/go-dvm/nostr"
+	"github.com/sebdeveloper6952/godvm/lightning"
 	"github.com/sirupsen/logrus"
 )
 
 type Engine struct {
-	dvmsByKind      map[int][]domain.Dvmer
-	nostrSvc        nostr.Service
+	dvmsByKind      map[int][]Dvmer
+	nostrSvc        NostrService
 	lnSvc           lightning.Service
 	log             *logrus.Logger
 	waitingForEvent map[string][]chan *goNostr.Event
@@ -29,7 +27,7 @@ func NewEngine() (*Engine, error) {
 	})
 	logger.SetLevel(logrus.TraceLevel)
 
-	nostrSvc, err := nostr.NewNostr(
+	nostrSvc, err := NewNostrService(
 		logger,
 	)
 	if err != nil {
@@ -37,7 +35,7 @@ func NewEngine() (*Engine, error) {
 	}
 
 	e := &Engine{
-		dvmsByKind:      make(map[int][]domain.Dvmer),
+		dvmsByKind:      make(map[int][]Dvmer),
 		waitingForEvent: make(map[string][]chan *goNostr.Event),
 		nostrSvc:        nostrSvc,
 		log:             logger,
@@ -50,10 +48,10 @@ func (e *Engine) SetLogLevel(level logrus.Level) {
 	e.log.SetLevel(level)
 }
 
-func (e *Engine) RegisterDVM(dvm domain.Dvmer) {
+func (e *Engine) RegisterDVM(dvm Dvmer) {
 	kindSupported := dvm.KindSupported()
 	if _, ok := e.dvmsByKind[kindSupported]; !ok {
-		e.dvmsByKind[kindSupported] = make([]domain.Dvmer, 0, 2)
+		e.dvmsByKind[kindSupported] = make([]Dvmer, 0, 2)
 	}
 	e.dvmsByKind[kindSupported] = append(e.dvmsByKind[kindSupported], dvm)
 }
@@ -90,7 +88,7 @@ func (e *Engine) Run(
 					continue
 				}
 
-				nip90Input, err := nostr.Nip90InputFromJobRequestEvent(event)
+				nip90Input, err := Nip90InputFromJobRequestEvent(event)
 				if err != nil {
 					e.log.Errorf("[engine] nip90Input from event  %+v\n", err)
 					continue
@@ -99,10 +97,10 @@ func (e *Engine) Run(
 				// if the inputs are asking for events/jobs, we fetch them here before proceeding
 				var wg sync.WaitGroup
 				for inputIdx := range nip90Input.Inputs {
-					if nip90Input.Inputs[inputIdx].Type == nostr.InputTypeEvent ||
-						nip90Input.Inputs[inputIdx].Type == nostr.InputTypeJob {
+					if nip90Input.Inputs[inputIdx].Type == InputTypeEvent ||
+						nip90Input.Inputs[inputIdx].Type == InputTypeJob {
 						wg.Add(1)
-						go func(input *nostr.Input) {
+						go func(input *Input) {
 							defer wg.Done()
 
 							// TODO: must handle when the event is not found, only when the input type is "event".
@@ -124,7 +122,7 @@ func (e *Engine) Run(
 				e.log.Tracef("[engine] finished waiting for input events")
 
 				for i := range dvmsForKind {
-					go func(dvm domain.Dvmer, input *nostr.Nip90Input) {
+					go func(dvm Dvmer, input *Nip90Input) {
 						if dvm.AcceptJob(input) {
 							e.runDvm(ctx, dvm, input)
 						}
@@ -139,13 +137,13 @@ func (e *Engine) Run(
 	return nil
 }
 
-func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip90Input) {
+func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) {
 	chanToDvm, chanToEngine, chanErr := dvm.Run(ctx, input)
 
 	for {
 		select {
 		case update := <-chanToEngine:
-			if update.Status == domain.StatusError {
+			if update.Status == StatusError {
 				if err := e.sendFeedbackEvent(
 					ctx,
 					dvm,
@@ -155,7 +153,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
 				}
 				return
-			} else if update.Status == domain.StatusPaymentRequired {
+			} else if update.Status == StatusPaymentRequired {
 				invoice, err := e.addInvoiceAndTrack(ctx, chanToDvm, int64(update.AmountSats))
 				if err != nil {
 					e.log.Tracef("[nostr] addInvoice %+v\n", err)
@@ -171,7 +169,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 				); err != nil {
 					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
 				}
-			} else if update.Status == domain.StatusProcessing {
+			} else if update.Status == StatusProcessing {
 				if err := e.sendFeedbackEvent(
 					ctx,
 					dvm,
@@ -180,7 +178,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 				); err != nil {
 					e.log.Errorf("[nostr] sendEventFeedback %+v\n", err)
 				}
-			} else if update.Status == domain.StatusSuccess {
+			} else if update.Status == StatusSuccess {
 				if err := e.sendFeedbackEvent(
 					ctx,
 					dvm,
@@ -201,7 +199,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 
 				e.log.Tracef("[engine] job completed %+v", update)
 				return
-			} else if update.Status == domain.StatusSuccessWithPayment {
+			} else if update.Status == StatusSuccessWithPayment {
 				if err := e.sendFeedbackEvent(
 					ctx,
 					dvm,
@@ -249,7 +247,7 @@ func (e *Engine) runDvm(ctx context.Context, dvm domain.Dvmer, input *nostr.Nip9
 func (e *Engine) advertiseDvms(ctx context.Context) {
 	for kind, dvms := range e.dvmsByKind {
 		for i := range dvms {
-			ev := nostr.NewHandlerInformationEvent(
+			ev := NewHandlerInformationEvent(
 				dvms[i].Pk(),
 				dvms[i].Profile(),
 				[]int{kind},
@@ -260,7 +258,7 @@ func (e *Engine) advertiseDvms(ctx context.Context) {
 				e.log.Errorf("[engine] publish nip-89 %s %+v", dvms[i].Pk(), err)
 			}
 
-			profileEv := nostr.NewProfileMetadataEvent(
+			profileEv := NewProfileMetadataEvent(
 				dvms[i].Pk(),
 				dvms[i].Profile(),
 			)
@@ -274,13 +272,13 @@ func (e *Engine) advertiseDvms(ctx context.Context) {
 
 func (e *Engine) addInvoiceAndTrack(
 	ctx context.Context,
-	chanToDvm chan *domain.JobUpdate,
+	chanToDvm chan *JobUpdate,
 	amountSats int64,
 ) (*lightning.Invoice, error) {
 	invoice, err := e.lnSvc.AddInvoice(ctx, amountSats)
 	if err != nil {
-		chanToDvm <- &domain.JobUpdate{
-			Status: domain.StatusError,
+		chanToDvm <- &JobUpdate{
+			Status: StatusError,
 		}
 		return nil, err
 	}
@@ -292,14 +290,14 @@ func (e *Engine) addInvoiceAndTrack(
 			select {
 			case invoiceUpdate := <-u:
 				if invoiceUpdate.Settled {
-					chanToDvm <- &domain.JobUpdate{
-						Status: domain.StatusPaymentCompleted,
+					chanToDvm <- &JobUpdate{
+						Status: StatusPaymentCompleted,
 					}
 					break trackInvoiceLoop
 				}
 			case <-e:
-				chanToDvm <- &domain.JobUpdate{
-					Status: domain.StatusError,
+				chanToDvm <- &JobUpdate{
+					Status: StatusError,
 				}
 				return
 			}
@@ -311,22 +309,28 @@ func (e *Engine) addInvoiceAndTrack(
 
 func (e *Engine) sendFeedbackEvent(
 	ctx context.Context,
-	dvm domain.Dvmer,
-	input *nostr.Nip90Input,
-	update *domain.JobUpdate,
+	dvm Dvmer,
+	input *Nip90Input,
+	update *JobUpdate,
 ) error {
 	feedbackEvent := &goNostr.Event{
 		PubKey:    dvm.Pk(),
 		CreatedAt: goNostr.Now(),
-		Kind:      nostr.KindJobFeedback,
+		Kind:      KindJobFeedback,
 		Tags: goNostr.Tags{
 			{"e", input.JobRequestId},
 			{"p", input.CustomerPubkey},
-			{"status", domain.JobStatusToString[update.Status]},
+			{"status", JobStatusToString[update.Status]},
 		},
 	}
 
-	if update.Status == domain.StatusPaymentRequired {
+	if update.ExtraTags != nil && len(update.ExtraTags) > 0 {
+		for i := range update.ExtraTags {
+			feedbackEvent.Tags = append(feedbackEvent.Tags, update.ExtraTags[i])
+		}
+	}
+
+	if update.Status == StatusPaymentRequired {
 		tag := goNostr.Tag{
 			"amount",
 			fmt.Sprintf("%d", update.AmountSats*1000),
@@ -346,14 +350,20 @@ func (e *Engine) sendFeedbackEvent(
 
 func (e *Engine) sendJobResultEvent(
 	ctx context.Context,
-	dvm domain.Dvmer,
-	input *nostr.Nip90Input,
-	update *domain.JobUpdate,
+	dvm Dvmer,
+	input *Nip90Input,
+	update *JobUpdate,
 ) error {
 	tags := goNostr.Tags{
 		{"request", input.JobRequestEventJSON},
 		{"e", input.JobRequestId},
 		{"p", input.CustomerPubkey},
+	}
+
+	if update.ExtraTags != nil && len(update.ExtraTags) > 0 {
+		for i := range update.ExtraTags {
+			tags = append(tags, update.ExtraTags[i])
+		}
 	}
 
 	for i := range input.Inputs {
@@ -377,7 +387,7 @@ func (e *Engine) sendJobResultEvent(
 		tags = append(tags, tag)
 	}
 
-	if update.Status == domain.StatusSuccessWithPayment && update.PaymentRequest != "" {
+	if update.Status == StatusSuccessWithPayment && update.PaymentRequest != "" {
 		tags = append(
 			tags,
 			goNostr.Tag{
@@ -396,7 +406,7 @@ func (e *Engine) sendJobResultEvent(
 		Tags:      tags,
 	}
 
-	if update.Status == domain.StatusPaymentRequired {
+	if update.Status == StatusPaymentRequired {
 		tag := goNostr.Tag{
 			"amount",
 			fmt.Sprintf("%d", update.AmountSats*1000),

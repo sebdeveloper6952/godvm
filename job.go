@@ -1,4 +1,4 @@
-package domain
+package godvm
 
 type Job struct {
 	ID string
@@ -32,5 +32,6 @@ type JobUpdate struct {
 	AmountSats     int
 	PaymentRequest string
 	Result         string
+	ExtraTags      [][]string
 	FailureMsg     string
 }

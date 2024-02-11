@@ -17,7 +17,7 @@ import (
 	"github.com/lightningnetwork/lnd/lntypes"
 	"github.com/lightningnetwork/lnd/lnwire"
 
-	"github.com/sebdeveloper6952/go-dvm/lightning"
+	"github.com/sebdeveloper6952/godvm/lightning"
 )
 
 type lnd struct {
