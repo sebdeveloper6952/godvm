@@ -246,23 +246,23 @@ func (e *Engine) advertiseDvms(ctx context.Context) {
 	for kind, dvms := range e.dvmsByKind {
 		for i := range dvms {
 			ev := NewHandlerInformationEvent(
-				dvms[i].Pk(),
+				dvms[i].PublicKeyHex(),
 				dvms[i].Profile(),
 				[]int{kind},
 				dvms[i].Version(),
 			)
 			dvms[i].Sign(ev)
 			if err := e.nostrSvc.PublishEvent(ctx, *ev); err != nil {
-				e.log.Errorf("[engine] publish nip-89 %s %+v", dvms[i].Pk(), err)
+				e.log.Errorf("[engine] publish nip-89 %s %+v", dvms[i].PublicKeyHex(), err)
 			}
 
 			profileEv := NewProfileMetadataEvent(
-				dvms[i].Pk(),
+				dvms[i].PublicKeyHex(),
 				dvms[i].Profile(),
 			)
 			dvms[i].Sign(profileEv)
 			if err := e.nostrSvc.PublishEvent(ctx, *profileEv); err != nil {
-				e.log.Errorf("[engine] publish profile %s %+v", dvms[i].Pk(), err)
+				e.log.Errorf("[engine] publish profile %s %+v", dvms[i].PublicKeyHex(), err)
 			}
 		}
 	}
@@ -312,7 +312,7 @@ func (e *Engine) sendFeedbackEvent(
 	update *JobUpdate,
 ) error {
 	feedbackEvent := &goNostr.Event{
-		PubKey:    dvm.Pk(),
+		PubKey:    dvm.PublicKeyHex(),
 		CreatedAt: goNostr.Now(),
 		Kind:      KindJobFeedback,
 		Tags: goNostr.Tags{
@@ -397,7 +397,7 @@ func (e *Engine) sendJobResultEvent(
 	}
 
 	jobResultEvent := &goNostr.Event{
-		PubKey:    dvm.Pk(),
+		PubKey:    dvm.PublicKeyHex(),
 		CreatedAt: goNostr.Now(),
 		Kind:      input.ResultKind,
 		Content:   update.Result,
