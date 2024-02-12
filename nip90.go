@@ -50,8 +50,24 @@ const (
 
 var (
 	reqToRes = map[int]int{
-		KindReqImageGeneration: KindResImageGeneration,
-		KindReqMalwareScan:     KindResMalwareScan,
+		KindReqTextExtraction:    KindResTextExtraction,
+		KindReqTextSummarization: KindResTextSummarization,
+		KindReqTextTranslation:   KindResTextTranslation,
+		KindReqTextGeneration:    KindResTextGeneration,
+		KindReqImageGeneration:   KindResImageGeneration,
+
+		KindReqVideoConversion:  KindResVideoConversion,
+		KindReqVideoTranslation: KindResVideoTranslation,
+		KindReqTextToSpeech:     KindResTextToSpeech,
+		KindReqContentDiscovery: KindResContentDiscovery,
+		KindReqNpubDiscovery:    KindResNpubDiscovery,
+		KindReqNostrEventCount:  KindResNostrEventCount,
+
+		KindReqMalwareScan: KindResMalwareScan,
+		KindReqAppAnalysis: KindResAppAnalysis,
+
+		KindReqEventTimestamping: KindResEventTimestamping,
+		KindReqBitcoinOpReturn:   KindResBitcoinOpReturn,
 	}
 )
 
