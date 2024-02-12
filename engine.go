@@ -144,85 +144,35 @@ func (e *Engine) runDvm(ctx context.Context, dvm Dvmer, input *Nip90Input) error
 	for {
 		select {
 		case update := <-chanToEngine:
-			if update.Status == StatusError {
-				if err := e.sendFeedbackEvent(
-					ctx,
-					dvm,
-					input,
-					update,
-				); err != nil {
-					return err
-				}
-			} else if update.Status == StatusPaymentRequired {
+			if update.Status == StatusPaymentRequired || update.Status == StatusSuccessWithPayment {
 				invoice, err := e.addInvoiceAndTrack(ctx, chanToDvm, int64(update.AmountSats))
 				if err != nil {
 					return err
 				}
-
 				update.PaymentRequest = invoice.PayReq
-				if err := e.sendFeedbackEvent(
-					ctx,
-					dvm,
-					input,
-					update,
-				); err != nil {
-					return err
-				}
-			} else if update.Status == StatusProcessing {
-				if err := e.sendFeedbackEvent(
-					ctx,
-					dvm,
-					input,
-					update,
-				); err != nil {
-					return err
-				}
-			} else if update.Status == StatusSuccess {
-				if err := e.sendFeedbackEvent(
-					ctx,
-					dvm,
-					input,
-					update,
-				); err != nil {
-					return err
-				}
+			}
 
-				if err := e.sendJobResultEvent(
-					ctx,
-					dvm,
-					input,
-					update,
-				); err != nil {
-					return err
-				}
-
-				return nil
-			} else if update.Status == StatusSuccessWithPayment {
-				if err := e.sendFeedbackEvent(
-					ctx,
-					dvm,
-					input,
-					update,
-				); err != nil {
-					return err
-				}
-
-				invoice, err := e.lnSvc.AddInvoice(ctx, int64(update.AmountSats))
-				if err != nil {
-					return err
-				}
-				update.PaymentRequest = invoice.PayReq
-
-				if err := e.sendJobResultEvent(
-					ctx,
-					dvm,
-					input,
-					update,
-				); err != nil {
-					return err
-				}
-
+			if err := e.sendFeedbackEvent(
+				ctx,
+				dvm,
+				input,
+				update,
+			); err != nil {
 				return err
+			}
+
+			if update.Status == StatusSuccess || update.Status == StatusSuccessWithPayment {
+				if err := e.sendJobResultEvent(
+					ctx,
+					dvm,
+					input,
+					update,
+				); err != nil {
+					return err
+				}
+
+				// if success status, exit this goroutine to free resources
+				return nil
 			}
 		case <-ctx.Done():
 			e.log.Printf("job context canceled")
