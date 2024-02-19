@@ -3,7 +3,6 @@ package godvm
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -253,33 +252,10 @@ func (e *Engine) sendFeedbackEvent(
 	input *Nip90Input,
 	update *JobUpdate,
 ) error {
-	feedbackEvent := &goNostr.Event{
-		PubKey:    dvm.PublicKeyHex(),
-		CreatedAt: goNostr.Now(),
-		Kind:      KindJobFeedback,
-		Tags: goNostr.Tags{
-			{"e", input.JobRequestId},
-			{"p", input.CustomerPubkey},
-			{"status", JobStatusToString[update.Status]},
-		},
+	feedbackEvent := Nip90JobFeedbackFromEngineUpdate(input, update)
+	if err := dvm.Sign(feedbackEvent); err != nil {
+		return err
 	}
-
-	if update.ExtraTags != nil && len(update.ExtraTags) > 0 {
-		for i := range update.ExtraTags {
-			feedbackEvent.Tags = append(feedbackEvent.Tags, update.ExtraTags[i])
-		}
-	}
-
-	if update.Status == StatusPaymentRequired {
-		tag := goNostr.Tag{
-			"amount",
-			fmt.Sprintf("%d", update.AmountSats*1000),
-			update.PaymentRequest,
-		}
-		feedbackEvent.Tags = append(feedbackEvent.Tags, tag)
-	}
-
-	dvm.Sign(feedbackEvent)
 
 	return e.nostrSvc.PublishEvent(
 		ctx,
@@ -294,68 +270,10 @@ func (e *Engine) sendJobResultEvent(
 	input *Nip90Input,
 	update *JobUpdate,
 ) error {
-	tags := goNostr.Tags{
-		{"request", input.JobRequestEventJSON},
-		{"e", input.JobRequestId},
-		{"p", input.CustomerPubkey},
+	jobResultEvent := Nip90JobResultFromEngineUpdate(input, update)
+	if err := dvm.Sign(jobResultEvent); err != nil {
+		return err
 	}
-
-	if update.ExtraTags != nil && len(update.ExtraTags) > 0 {
-		for i := range update.ExtraTags {
-			tags = append(tags, update.ExtraTags[i])
-		}
-	}
-
-	for i := range input.Inputs {
-		tag := goNostr.Tag{
-			"i",
-			input.Inputs[i].Value,
-		}
-
-		if input.Inputs[i].Type != "" {
-			tag = append(tag, input.Inputs[i].Type)
-		}
-
-		if input.Inputs[i].Relay != "" {
-			tag = append(tag, input.Inputs[i].Relay)
-		}
-
-		if input.Inputs[i].Marker != "" {
-			tag = append(tag, input.Inputs[i].Marker)
-		}
-
-		tags = append(tags, tag)
-	}
-
-	if update.Status == StatusSuccessWithPayment && update.PaymentRequest != "" {
-		tags = append(
-			tags,
-			goNostr.Tag{
-				"amount",
-				fmt.Sprintf("%d", update.AmountSats*1000),
-				update.PaymentRequest,
-			},
-		)
-	}
-
-	jobResultEvent := &goNostr.Event{
-		PubKey:    dvm.PublicKeyHex(),
-		CreatedAt: goNostr.Now(),
-		Kind:      input.ResultKind,
-		Content:   update.Result,
-		Tags:      tags,
-	}
-
-	if update.Status == StatusPaymentRequired {
-		tag := goNostr.Tag{
-			"amount",
-			fmt.Sprintf("%d", update.AmountSats*1000),
-			update.PaymentRequest,
-		}
-		jobResultEvent.Tags = append(jobResultEvent.Tags, tag)
-	}
-
-	dvm.Sign(jobResultEvent)
 
 	return e.nostrSvc.PublishEvent(
 		ctx,
@@ -364,17 +282,9 @@ func (e *Engine) sendJobResultEvent(
 	)
 }
 
-func (e *Engine) saveDvmWaitingForEvent(id string, waitCh chan *goNostr.Event) {
-	if _, exist := e.waitingForEvent[id]; !exist {
-		e.waitingForEvent[id] = make([]chan *goNostr.Event, 0, 1)
-	}
-
-	e.waitingForEvent[id] = append(e.waitingForEvent[id], waitCh)
-}
-
 func (e *Engine) getKindsSupported() []int {
 	kinds := make([]int, 0, len(e.dvmsByKind))
-	for kindKey, _ := range e.dvmsByKind {
+	for kindKey := range e.dvmsByKind {
 		kinds = append(kinds, kindKey)
 	}
 

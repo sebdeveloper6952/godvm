@@ -2,6 +2,7 @@ package godvm
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	goNostr "github.com/nbd-wtf/go-nostr"
@@ -24,51 +25,12 @@ const (
 	KindReqEventTimestamping = 5900
 	KindReqBitcoinOpReturn   = 5901
 
-	KindResTextExtraction    = 6000
-	KindResTextSummarization = 6001
-	KindResTextTranslation   = 6002
-	KindResTextGeneration    = 6050
-	KindResImageGeneration   = 6100
-	KindResVideoConversion   = 6200
-	KindResVideoTranslation  = 6201
-	KindResTextToSpeech      = 6250
-	KindResContentDiscovery  = 6300
-	KindResNpubDiscovery     = 6301
-	KindResNostrEventCount   = 6400
-	KindResMalwareScan       = 6500
-	KindResAppAnalysis       = 6501
-	KindResEventTimestamping = 6900
-	KindResBitcoinOpReturn   = 6901
-
 	KindJobFeedback = 7000
 
 	InputTypeText  = "text"
 	InputTypeURL   = "url"
 	InputTypeEvent = "event"
 	InputTypeJob   = "job"
-)
-
-var (
-	reqToRes = map[int]int{
-		KindReqTextExtraction:    KindResTextExtraction,
-		KindReqTextSummarization: KindResTextSummarization,
-		KindReqTextTranslation:   KindResTextTranslation,
-		KindReqTextGeneration:    KindResTextGeneration,
-		KindReqImageGeneration:   KindResImageGeneration,
-
-		KindReqVideoConversion:  KindResVideoConversion,
-		KindReqVideoTranslation: KindResVideoTranslation,
-		KindReqTextToSpeech:     KindResTextToSpeech,
-		KindReqContentDiscovery: KindResContentDiscovery,
-		KindReqNpubDiscovery:    KindResNpubDiscovery,
-		KindReqNostrEventCount:  KindResNostrEventCount,
-
-		KindReqMalwareScan: KindResMalwareScan,
-		KindReqAppAnalysis: KindResAppAnalysis,
-
-		KindReqEventTimestamping: KindResEventTimestamping,
-		KindReqBitcoinOpReturn:   KindResBitcoinOpReturn,
-	}
 )
 
 type Input struct {
@@ -90,7 +52,6 @@ type Nip90Input struct {
 	Relays              []string
 	JobRequestEventJSON string
 	Event               *goNostr.Event
-	ResultKind          int
 	TaggedPubkeys       map[string]struct{}
 }
 
@@ -100,7 +61,6 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 		CustomerPubkey: e.PubKey,
 		Params:         make([][2]string, 0),
 		Event:          e,
-		ResultKind:     responseKind(e.Kind),
 		Inputs:         make([]*Input, 0, 1),
 		TaggedPubkeys:  make(map[string]struct{}),
 	}
@@ -150,10 +110,90 @@ func Nip90InputFromJobRequestEvent(e *goNostr.Event) (*Nip90Input, error) {
 	return input, nil
 }
 
-func responseKind(requestKind int) int {
-	if res, ok := reqToRes[requestKind]; ok {
-		return res
+func Nip90JobFeedbackFromEngineUpdate(
+	input *Nip90Input,
+	update *JobUpdate,
+) *goNostr.Event {
+	feedbackEvent := &goNostr.Event{
+		CreatedAt: goNostr.Now(),
+		Kind:      KindJobFeedback,
+		Tags: goNostr.Tags{
+			{"e", input.JobRequestId},
+			{"p", input.CustomerPubkey},
+			{"status", JobStatusToString[update.Status]},
+		},
 	}
 
-	return 0
+	if update.Status == StatusPaymentRequired {
+		tag := goNostr.Tag{
+			"amount",
+			fmt.Sprintf("%d", update.AmountSats*1000),
+			update.PaymentRequest,
+		}
+		feedbackEvent.Tags = append(feedbackEvent.Tags, tag)
+	}
+
+	return feedbackEvent
+}
+
+func Nip90JobResultFromEngineUpdate(
+	input *Nip90Input,
+	update *JobUpdate,
+) *goNostr.Event {
+	jobResultEvent := &goNostr.Event{
+		Kind:      input.Event.Kind + 1000,
+		Content:   update.Result,
+		CreatedAt: goNostr.Now(),
+	}
+
+	tags := goNostr.Tags{
+		{"request", input.JobRequestEventJSON},
+		{"e", input.JobRequestId},
+		{"p", input.CustomerPubkey},
+	}
+
+	for i := range input.Inputs {
+		tag := goNostr.Tag{
+			"i",
+			input.Inputs[i].Value,
+		}
+
+		if input.Inputs[i].Type != "" {
+			tag = append(tag, input.Inputs[i].Type)
+		}
+
+		if input.Inputs[i].Relay != "" {
+			tag = append(tag, input.Inputs[i].Relay)
+		}
+
+		if input.Inputs[i].Marker != "" {
+			tag = append(tag, input.Inputs[i].Marker)
+		}
+
+		tags = append(tags, tag)
+	}
+
+	if update.Status == StatusSuccessWithPayment && update.PaymentRequest != "" {
+		tags = append(
+			tags,
+			goNostr.Tag{
+				"amount",
+				fmt.Sprintf("%d", update.AmountSats*1000),
+				update.PaymentRequest,
+			},
+		)
+	}
+
+	jobResultEvent.Tags = tags
+
+	if update.Status == StatusPaymentRequired {
+		tag := goNostr.Tag{
+			"amount",
+			fmt.Sprintf("%d", update.AmountSats*1000),
+			update.PaymentRequest,
+		}
+		jobResultEvent.Tags = append(jobResultEvent.Tags, tag)
+	}
+
+	return jobResultEvent
 }
