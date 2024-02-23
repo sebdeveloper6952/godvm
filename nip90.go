@@ -124,6 +124,12 @@ func Nip90JobFeedbackFromEngineUpdate(
 		},
 	}
 
+	if update.ExtraTags != nil && len(update.ExtraTags) > 0 {
+		for i := range update.ExtraTags {
+			feedbackEvent.Tags = append(feedbackEvent.Tags, update.ExtraTags[i])
+		}
+	}
+
 	if update.Status == StatusPaymentRequired {
 		tag := goNostr.Tag{
 			"amount",
@@ -144,12 +150,17 @@ func Nip90JobResultFromEngineUpdate(
 		Kind:      input.Event.Kind + 1000,
 		Content:   update.Result,
 		CreatedAt: goNostr.Now(),
+		Tags: goNostr.Tags{
+			{"request", input.JobRequestEventJSON},
+			{"e", input.JobRequestId},
+			{"p", input.CustomerPubkey},
+		},
 	}
 
-	tags := goNostr.Tags{
-		{"request", input.JobRequestEventJSON},
-		{"e", input.JobRequestId},
-		{"p", input.CustomerPubkey},
+	if update.ExtraTags != nil && len(update.ExtraTags) > 0 {
+		for i := range update.ExtraTags {
+			jobResultEvent.Tags = append(jobResultEvent.Tags, update.ExtraTags[i])
+		}
 	}
 
 	for i := range input.Inputs {
@@ -170,12 +181,12 @@ func Nip90JobResultFromEngineUpdate(
 			tag = append(tag, input.Inputs[i].Marker)
 		}
 
-		tags = append(tags, tag)
+		jobResultEvent.Tags = append(jobResultEvent.Tags, tag)
 	}
 
 	if update.Status == StatusSuccessWithPayment && update.PaymentRequest != "" {
-		tags = append(
-			tags,
+		jobResultEvent.Tags = append(
+			jobResultEvent.Tags,
 			goNostr.Tag{
 				"amount",
 				fmt.Sprintf("%d", update.AmountSats*1000),
@@ -183,8 +194,6 @@ func Nip90JobResultFromEngineUpdate(
 			},
 		)
 	}
-
-	jobResultEvent.Tags = tags
 
 	if update.Status == StatusPaymentRequired {
 		tag := goNostr.Tag{
